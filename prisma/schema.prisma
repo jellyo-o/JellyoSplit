@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  sid    String   @id @db.VarChar
+  sess   Json     @db.Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String?  @unique          // null for OIDC-only users
+  passwordHash  String?                   // null for OIDC-only users
+  displayName   String
+  email         String?  @unique
+  oidcSub       String?  @unique          // OIDC subject identifier
+  oidcIssuer    String?                   // OIDC issuer URL
+  avatarUrl     String?
+  role          Role     @default(USER)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  ownedGatherings   Gathering[]        @relation("GatheringOwner")
+  collaborations    GatheringCollaborator[]
+  payments          Payment[]
+}
+
+model Gathering {
+  id          String   @id @default(cuid())
+  name        String                       // "Jake's BBQ", "New Year Dinner"
+  description String?
+  date        DateTime?
+  currency    String   @default("SGD")
+  status      String   @default("active")  // active | settled | archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Owner
+  ownerId     String
+  owner       User     @relation("GatheringOwner", fields: [ownerId], references: [id])
+
+  // Share
+  shareCode   String   @unique @default(cuid()) // for invite links
+  collaborators GatheringCollaborator[]
+
+  // Children
+  participants Participant[]
+  categories   Category[]
+  payments     Payment[]
+}
+
+model GatheringCollaborator {
+  id          String   @id @default(cuid())
+  gatheringId String
+  userId      String
+  role        String   @default("editor") // editor | viewer
+  gathering   Gathering @relation(fields: [gatheringId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gatheringId, userId])
+}
+
+model Participant {
+  id          String   @id @default(cuid())
+  gatheringId String
+  name        String                       // Display name (not tied to a User account)
+  emoji       String?                      // Optional avatar emoji
+  createdAt   DateTime @default(now())
+
+  gathering   Gathering @relation(fields: [gatheringId], references: [id], onDelete: Cascade)
+
+  // Relations
+  categoryAssignments CategoryParticipant[]
+  adjustments         Adjustment[]
+  payments            Payment[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  gatheringId String
+  name        String                       // "Main Food", "Drinks", "Venue Booking"
+  totalAmount Float                        // Total cost for this category
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  gathering   Gathering @relation(fields: [gatheringId], references: [id], onDelete: Cascade)
+
+  // Relations
+  participants CategoryParticipant[]
+  adjustments  Adjustment[]
+  payments     Payment[]
+  sources      CategorySource[]
+}
+
+model CategorySource {
+  id         String   @id @default(cuid())
+  categoryId String
+  name       String
+  amount     Float
+  note       String?
+  createdAt  DateTime @default(now())
+
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+}
+
+model CategoryParticipant {
+  id            String   @id @default(cuid())
+  categoryId    String
+  participantId String
+
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, participantId])
+}
+
+model Adjustment {
+  id            String   @id @default(cuid())
+  categoryId    String?                    // null = applies to overall total
+  participantId String
+  type          String                     // "percentage" | "fixed"
+  value         Float                      // e.g. 20 (for 20%) or 5.00 (for $5 off)
+  reason        String?                    // "Birthday boy", "Didn't drink"
+
+  category      Category?   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  gatheringId   String
+  categoryId    String?                    // which category this payment covers (null = general)
+  participantId String                     // the participant who paid
+  paidById      String?                    // the User who recorded this (for audit)
+  amount        Float                      // how much they paid
+  note          String?
+  createdAt     DateTime @default(now())
+
+  gathering     Gathering   @relation(fields: [gatheringId], references: [id], onDelete: Cascade)
+  category      Category?   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  paidBy        User?       @relation(fields: [paidById], references: [id])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
