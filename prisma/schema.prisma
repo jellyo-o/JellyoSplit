@@ -54,7 +54,8 @@ model Gathering {
   owner       User     @relation("GatheringOwner", fields: [ownerId], references: [id])
 
   // Share
-  shareCode   String   @unique @default(cuid()) // for invite links
+  shareCode      String @unique @default(cuid()) // for invite links
+  shareCodeRole  String @default("editor")        // role granted to new joiners via shareCode (editor | viewer)
   collaborators GatheringCollaborator[]
 
   // Children

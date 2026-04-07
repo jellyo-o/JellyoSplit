@@ -18,7 +18,7 @@ function EditableParticipant({ id, name, emoji, onRemove }: {
   emoji?: string | null;
   onRemove: () => void;
 }) {
-  const { gathering, optimistic } = useGatheringContext();
+  const { gathering, optimistic, canEdit } = useGatheringContext();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,19 +82,23 @@ function EditableParticipant({ id, name, emoji, onRemove }: {
     <div className="group flex items-center gap-2 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 animate-[fadeIn_150ms_ease-out] max-w-full min-w-0">
       {emoji && <span className="text-xl flex-shrink-0">{emoji}</span>}
       <span className="font-medium text-gray-700 dark:text-gray-300 truncate">{name}</span>
-      <button
-        onClick={() => setEditing(true)}
-        className="text-gray-300 dark:text-gray-500 hover:text-primary-500 dark:hover:text-primary-400 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-        title="Edit name"
-      >
-        <Pencil className="w-3 h-3" />
-      </button>
-      <button
-        onClick={onRemove}
-        className="ml-auto text-gray-400 hover:text-red-500 font-bold cursor-pointer"
-      >
-        &times;
-      </button>
+      {canEdit && (
+        <>
+          <button
+            onClick={() => setEditing(true)}
+            className="text-gray-300 dark:text-gray-500 hover:text-primary-500 dark:hover:text-primary-400 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Edit name"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onRemove}
+            className="ml-auto text-gray-400 hover:text-red-500 font-bold cursor-pointer"
+          >
+            &times;
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -105,6 +109,7 @@ function EditableSource({ source, currency, onSave, onRemove }: {
   onSave: (name: string, amount: number, note: string | null) => void;
   onRemove: () => void;
 }) {
+  const { canEdit } = useGatheringContext();
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(source.name);
   const [draftAmount, setDraftAmount] = useState(source.amount.toString());
@@ -175,14 +180,18 @@ function EditableSource({ source, currency, onSave, onRemove }: {
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className="text-gray-500 dark:text-gray-400">{currency} {source.amount.toFixed(2)}</span>
-        <button
-          onClick={() => setEditing(true)}
-          className="text-gray-300 dark:text-gray-500 hover:text-primary-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Edit item"
-        >
-          <Pencil className="w-3 h-3" />
-        </button>
-        <button onClick={onRemove} className="text-gray-400 hover:text-red-500 cursor-pointer">&times;</button>
+        {canEdit && (
+          <>
+            <button
+              onClick={() => setEditing(true)}
+              className="text-gray-300 dark:text-gray-500 hover:text-primary-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Edit item"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+            <button onClick={onRemove} className="text-gray-400 hover:text-red-500 cursor-pointer">&times;</button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -195,7 +204,7 @@ function EditableCategory({ id, name, totalAmount, currency, onRemove }: {
   currency: string;
   onRemove: () => void;
 }) {
-  const { gathering, optimistic } = useGatheringContext();
+  const { gathering, optimistic, canEdit } = useGatheringContext();
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(name);
   const [draftAmount, setDraftAmount] = useState(totalAmount.toString());
@@ -338,21 +347,23 @@ function EditableCategory({ id, name, totalAmount, currency, onRemove }: {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditing(true)}
-            className="text-gray-300 dark:text-gray-500 hover:text-primary-500 dark:hover:text-primary-400 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Edit"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onRemove}
-            className="text-gray-400 hover:text-red-500 font-bold cursor-pointer"
-          >
-            &times;
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEditing(true)}
+              className="text-gray-300 dark:text-gray-500 hover:text-primary-500 dark:hover:text-primary-400 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Edit"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onRemove}
+              className="text-gray-400 hover:text-red-500 font-bold cursor-pointer"
+            >
+              &times;
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Expanded sources section */}
@@ -383,24 +394,26 @@ function EditableCategory({ id, name, totalAmount, currency, onRemove }: {
             />
           ))}
 
-          <form onSubmit={addSource} className="flex gap-2 items-center">
-            <Plus className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-            <input
-              value={newSrcName}
-              onChange={(e) => setNewSrcName(e.target.value)}
-              placeholder="Item name (e.g. McDonalds)"
-              className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-600 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 outline-none py-1 min-w-0"
-            />
-            <input
-              value={newSrcAmount}
-              onChange={(e) => setNewSrcAmount(e.target.value)}
-              placeholder="Amount"
-              type="number"
-              step="0.01"
-              className="w-24 bg-transparent border-b border-gray-200 dark:border-gray-600 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 outline-none py-1"
-            />
-            <Button type="submit" size="sm" variant="ghost" className="flex-shrink-0 h-7 px-2 text-xs">Add</Button>
-          </form>
+          {canEdit && (
+            <form onSubmit={addSource} className="flex gap-2 items-center">
+              <Plus className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <input
+                value={newSrcName}
+                onChange={(e) => setNewSrcName(e.target.value)}
+                placeholder="Item name (e.g. McDonalds)"
+                className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-600 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 outline-none py-1 min-w-0"
+              />
+              <input
+                value={newSrcAmount}
+                onChange={(e) => setNewSrcAmount(e.target.value)}
+                placeholder="Amount"
+                type="number"
+                step="0.01"
+                className="w-24 bg-transparent border-b border-gray-200 dark:border-gray-600 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 outline-none py-1"
+              />
+              <Button type="submit" size="sm" variant="ghost" className="flex-shrink-0 h-7 px-2 text-xs">Add</Button>
+            </form>
+          )}
 
           {sources.length > 0 && (
             <div className={cn(
@@ -423,7 +436,7 @@ function EditableCategory({ id, name, totalAmount, currency, onRemove }: {
 }
 
 export default function SetupTab() {
-  const { gathering, optimistic } = useGatheringContext();
+  const { gathering, optimistic, canEdit } = useGatheringContext();
   const sk = `setup:${gathering.id}`;
   const [newParticipant, setNewParticipant] = useSessionState(`${sk}:newParticipant`, '');
   const [bulkMode, setBulkMode] = useSessionState(`${sk}:bulkMode`, false);
@@ -540,15 +553,17 @@ export default function SetupTab() {
       <section className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-x-hidden">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Participants <span className="text-sm font-normal text-gray-400 dark:text-gray-500">({gathering.participants.length})</span></h2>
-          <button
-            onClick={() => setBulkMode(!bulkMode)}
-            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
-          >
-            {bulkMode ? 'Single add' : 'Bulk add'}
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setBulkMode(!bulkMode)}
+              className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
+            >
+              {bulkMode ? 'Single add' : 'Bulk add'}
+            </button>
+          )}
         </div>
 
-        {bulkMode ? (
+        {canEdit && (bulkMode ? (
           <div className="space-y-3">
             <textarea
               value={bulkText}
@@ -571,7 +586,7 @@ export default function SetupTab() {
             />
             <Button type="submit">Add</Button>
           </form>
-        )}
+        ))}
 
         <div className="flex flex-wrap gap-3 mt-4 overflow-hidden min-w-0">
           {gathering.participants.map((p) => (
@@ -593,15 +608,17 @@ export default function SetupTab() {
       <section className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Categories & Expenses <span className="text-sm font-normal text-gray-400 dark:text-gray-500">({gathering.categories.length})</span></h2>
-          <button
-            onClick={() => setBulkCategoryMode(!bulkCategoryMode)}
-            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
-          >
-            {bulkCategoryMode ? 'Single add' : 'Bulk add'}
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setBulkCategoryMode(!bulkCategoryMode)}
+              className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
+            >
+              {bulkCategoryMode ? 'Single add' : 'Bulk add'}
+            </button>
+          )}
         </div>
 
-        {bulkCategoryMode ? (
+        {canEdit && (bulkCategoryMode ? (
           <div className="space-y-3">
             <textarea
               value={bulkCategoryText}
@@ -632,7 +649,7 @@ export default function SetupTab() {
             />
             <Button type="submit">Add</Button>
           </form>
-        )}
+        ))}
 
         <div className="space-y-3 mt-4">
           {gathering.categories.map((c) => (

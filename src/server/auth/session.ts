@@ -21,7 +21,12 @@ export const sessionMiddleware = session({
   cookie: {
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    // 'auto' lets express-session emit Secure only when the request is actually
+    // secure (directly or via a trusted proxy). Hard-coding `true` in production
+    // dropped the Set-Cookie header behind an HTTPS reverse proxy, which broke
+    // OIDC because the strategy state in `oidc:<host>` was saved against a
+    // session ID the browser never received.
+    secure: 'auto',
     sameSite: 'lax',
   },
 });

@@ -21,6 +21,15 @@ const requireAdmin = (req: any, res: any, next: any) => {
   res.status(403).json({ error: 'Admin access required' });
 };
 
+// AUTH_MODE in env (when set) is the source of truth, since it's what actually
+// drives strategy registration in `configureOIDC`. The DB row is only the
+// fallback when env is unset, otherwise the UI and the backend can disagree
+// (e.g. login page hides the SSO button while OIDC strategies are live).
+const authModeFromEnv = (): string | null => {
+  const raw = process.env.AUTH_MODE?.toLowerCase();
+  return raw === 'local' || raw === 'oidc' || raw === 'both' ? raw : null;
+};
+
 // Get all settings (admin only for full settings, public subset for everyone)
 router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
@@ -29,7 +38,9 @@ router.get('/', requireAuth, requireAdmin, async (req, res, next) => {
     for (const s of dbSettings) {
       settings[s.key] = s.value;
     }
-    res.json({ settings });
+    const envAuthMode = authModeFromEnv();
+    if (envAuthMode) settings.authMode = envAuthMode;
+    res.json({ settings, authModeManagedByEnv: envAuthMode !== null });
   } catch (err) {
     next(err);
   }
@@ -52,6 +63,8 @@ router.get('/public', async (req, res, next) => {
     for (const s of dbSettings) {
       settings[s.key] = s.value;
     }
+    const envAuthMode = authModeFromEnv();
+    if (envAuthMode) settings.authMode = envAuthMode;
     res.json({ settings });
   } catch (err) {
     next(err);

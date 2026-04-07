@@ -23,6 +23,12 @@ import settingsRoutes from './routes/settings';
 import oidcProvidersRoutes from './routes/oidc-providers';
 
 const app = express();
+
+// Trust the first hop reverse proxy (e.g. nginx/traefik). This is required so
+// that `req.secure` reflects X-Forwarded-Proto and `cookie.secure: 'auto'` can
+// emit the session cookie when the app is served over HTTPS via a proxy.
+app.set('trust proxy', 1);
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {

@@ -9,6 +9,7 @@ interface GatheringContextType {
     apiCall: () => Promise<any>
   ) => void;
   refetch: () => Promise<void>;
+  canEdit: boolean;
 }
 
 const GatheringContext = createContext<GatheringContextType | null>(null);

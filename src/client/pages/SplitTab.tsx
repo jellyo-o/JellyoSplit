@@ -23,10 +23,11 @@ function getAssignedParticipants(category: Category, allParticipants: Participan
 
 /* ---------- DraggableParticipant ---------- */
 
-function DraggableParticipant({ participant }: { participant: Participant }) {
+function DraggableParticipant({ participant, disabled }: { participant: Participant; disabled?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `draggable-${participant.id}`,
-    data: { participant }
+    data: { participant },
+    disabled,
   });
 
   const style = { transform: CSS.Translate.toString(transform) };
@@ -35,10 +36,11 @@ function DraggableParticipant({ participant }: { participant: Participant }) {
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
+      {...(disabled ? {} : listeners)}
+      {...(disabled ? {} : attributes)}
       className={cn(
-        "flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm cursor-grab active:cursor-grabbing select-none",
+        "flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm select-none",
+        disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50"
       )}
     >
@@ -208,7 +210,7 @@ function CategoryDetailModal({
   onAddAdjustment: (cid: string, pid: string) => void;
   onRemoveAdjustment: (adjId: string) => void;
 }) {
-  const { gathering } = useGatheringContext();
+  const { gathering, canEdit } = useGatheringContext();
   const assigned = getAssignedParticipants(category, gathering.participants);
   const perPerson = assigned.length > 0 ? category.totalAmount / assigned.length : 0;
   const sources: any[] = category.sources ?? [];
@@ -262,16 +264,18 @@ function CategoryDetailModal({
                 {adj && adjLabel && (
                   <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                     {adjLabel}
-                    <button
-                      onClick={() => onRemoveAdjustment(adj.id)}
-                      className="hover:text-red-600 dark:hover:text-red-400 font-bold cursor-pointer leading-none"
-                      title="Remove adjustment"
-                    >
-                      &times;
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => onRemoveAdjustment(adj.id)}
+                        className="hover:text-red-600 dark:hover:text-red-400 font-bold cursor-pointer leading-none"
+                        title="Remove adjustment"
+                      >
+                        &times;
+                      </button>
+                    )}
                   </span>
                 )}
-                {!adj && (
+                {!adj && canEdit && (
                   <button
                     onClick={() => onAddAdjustment(category.id, p.id)}
                     className="text-xs text-blue-500 hover:underline cursor-pointer"
@@ -279,12 +283,14 @@ function CategoryDetailModal({
                     Adj
                   </button>
                 )}
-                <button
-                  onClick={() => onRemove(category.id, p.id)}
-                  className="text-gray-400 hover:text-red-500 font-bold cursor-pointer"
-                >
-                  &times;
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => onRemove(category.id, p.id)}
+                    className="text-gray-400 hover:text-red-500 font-bold cursor-pointer"
+                  >
+                    &times;
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -310,10 +316,11 @@ function CompactCategoryCard({
   onViewDetails: (category: Category) => void;
   onMassAssign: (category: Category) => void;
 }) {
-  const { gathering } = useGatheringContext();
+  const { gathering, canEdit } = useGatheringContext();
   const { isOver, setNodeRef } = useDroppable({
     id: `droppable-${category.id}`,
     data: { category },
+    disabled: !canEdit,
   });
 
   const assigned = getAssignedParticipants(category, gathering.participants);
@@ -368,12 +375,16 @@ function CompactCategoryCard({
       <div className="flex items-center justify-between">
         {assigned.length > 0 ? (
           <AvatarStack participants={assigned} onClick={() => onViewDetails(category)} />
-        ) : (
+        ) : canEdit ? (
           <span
             className="text-xs text-gray-400 dark:text-gray-500 border border-dashed border-gray-300 dark:border-gray-600 px-3 py-1.5 rounded-lg cursor-pointer hover:border-primary-300 hover:text-primary-500 transition-colors"
             onClick={() => onMassAssign(category)}
           >
             Drop or click to assign
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+            No participants assigned
           </span>
         )}
         <div className="flex items-center gap-1">
@@ -386,13 +397,15 @@ function CompactCategoryCard({
               <Eye className="w-4 h-4" />
             </button>
           )}
-          <button
-            onClick={() => onMassAssign(category)}
-            className="text-gray-400 hover:text-primary-500 cursor-pointer p-1"
-            title="Assign participants"
-          >
-            <UserPlus className="w-4 h-4" />
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => onMassAssign(category)}
+              className="text-gray-400 hover:text-primary-500 cursor-pointer p-1"
+              title="Assign participants"
+            >
+              <UserPlus className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -402,7 +415,7 @@ function CompactCategoryCard({
 /* ---------- SpendingOverview ---------- */
 
 function SpendingOverview({ onAddOverallAdjustment, onRemoveAdjustment }: { onAddOverallAdjustment: (pid: string) => void; onRemoveAdjustment: (adjId: string) => void }) {
-  const { gathering } = useGatheringContext();
+  const { gathering, canEdit } = useGatheringContext();
   const [showOverview, setShowOverview] = useSessionState(`split:${gathering.id}:showOverview`, true);
 
   const stats = useMemo(() => {
@@ -541,20 +554,22 @@ function SpendingOverview({ onAddOverallAdjustment, onRemoveAdjustment }: { onAd
                       {overallAdjLabel && overallAdjId && (
                         <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                           {overallAdjLabel}
-                          <button
-                            onClick={() => onRemoveAdjustment(overallAdjId)}
-                            className="hover:text-red-600 dark:hover:text-red-400 font-bold cursor-pointer leading-none"
-                            title="Remove adjustment"
-                          >
-                            &times;
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => onRemoveAdjustment(overallAdjId)}
+                              className="hover:text-red-600 dark:hover:text-red-400 font-bold cursor-pointer leading-none"
+                              title="Remove adjustment"
+                            >
+                              &times;
+                            </button>
+                          )}
                         </span>
                       )}
                       {totalOwed > 0 ? `${gathering.currency} ${totalOwed.toFixed(2)}` : <span className="text-gray-300 dark:text-gray-600">&mdash;</span>}
                     </div>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    {!hasOverallAdj && categoryCount > 0 && (
+                    {canEdit && !hasOverallAdj && categoryCount > 0 && (
                       <button
                         onClick={() => onAddOverallAdjustment(pt.id)}
                         className="text-xs text-blue-500 hover:underline cursor-pointer"
@@ -576,7 +591,7 @@ function SpendingOverview({ onAddOverallAdjustment, onRemoveAdjustment }: { onAd
 /* ---------- SplitTab (main) ---------- */
 
 export default function SplitTab() {
-  const { gathering, optimistic } = useGatheringContext();
+  const { gathering, optimistic, canEdit } = useGatheringContext();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [adjustmentModal, setAdjustmentModal] = useState<{ cid: string | null; pid: string } | null>(null);
   const [adjType, setAdjType] = useState<'fixed' | 'percentage'>('percentage');
@@ -587,6 +602,7 @@ export default function SplitTab() {
 
   const handleDragEnd = async (e: DragEndEvent) => {
     setActiveId(null);
+    if (!canEdit) return;
     const { active, over } = e;
     if (over && over.id.toString().startsWith('droppable-')) {
       const categoryId = over.id.toString().replace('droppable-', '');
@@ -693,11 +709,13 @@ export default function SplitTab() {
             Participants
           </h2>
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-            Drag to a category, or use <UserPlus className="w-3 h-3 inline" /> to assign.
+            {canEdit
+              ? <>Drag to a category, or use <UserPlus className="w-3 h-3 inline" /> to assign.</>
+              : 'Read-only view.'}
           </p>
           <div className="flex flex-col gap-2 overflow-y-auto">
             {gathering.participants.map((p) => (
-              <DraggableParticipant key={p.id} participant={p} />
+              <DraggableParticipant key={p.id} participant={p} disabled={!canEdit} />
             ))}
           </div>
         </div>

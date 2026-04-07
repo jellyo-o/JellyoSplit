@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, LogOut, Settings, Upload, Calendar, Wallet, UserCheck } from 'lucide-react';
+import { Plus, Users, LogOut, Settings, Upload, Calendar, Wallet, UserCheck, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchApi } from '../lib/api';
 import { Button } from '../components/ui/Button';
@@ -16,6 +16,7 @@ interface Gathering {
   name: string;
   currency: string;
   status: string;
+  ownerId: string;
   createdAt: string;
   participantCount: number;
   collaboratorCount: number;
@@ -31,7 +32,23 @@ export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGatheringName, setNewGatheringName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
+
+  const handleDeleteGathering = async (id: string, name: string) => {
+    setDeletingId(id);
+    try {
+      await fetchApi(`/gatherings/${id}`, { method: 'DELETE' });
+      setGatherings((prev) => prev.filter((g) => g.id !== id));
+      toast.success(`"${name}" deleted.`);
+    } catch {
+      toast.error('Failed to delete gathering.');
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
 
   const handleImport = async (file: File) => {
     try {
@@ -172,50 +189,103 @@ export default function Dashboard() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gatherings.map((gathering) => (
-              <Card
-                key={gathering.id}
-                className="hover:shadow-md transition-shadow cursor-pointer group"
-                onClick={() => navigate(`/gathering/${gathering.id}`)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                      {gathering.name}
-                    </CardTitle>
-                    {gathering.status && gathering.status !== 'active' && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${statusColor(gathering.status)}`}>
-                        {gathering.status}
-                      </span>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-1">
-                  <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                      <Wallet className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="font-medium text-gray-700 dark:text-gray-300">
-                        {gathering.currency || 'SGD'} {(gathering.totalAmount || 0).toFixed(2)}
-                      </span>
+            {gatherings.map((gathering) => {
+              const isOwner = user?.id === gathering.ownerId;
+              const isConfirming = confirmDeleteId === gathering.id;
+              return (
+                <Card
+                  key={gathering.id}
+                  className="hover:shadow-md transition-shadow cursor-pointer group relative"
+                  onClick={() => {
+                    if (isConfirming) return;
+                    navigate(`/gathering/${gathering.id}`);
+                  }}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                        {gathering.name}
+                      </CardTitle>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {gathering.status && gathering.status !== 'active' && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${statusColor(gathering.status)}`}>
+                            {gathering.status}
+                          </span>
+                        )}
+                        {isOwner && !isConfirming && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteId(gathering.id);
+                            }}
+                            className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 cursor-pointer p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete gathering"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                      <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{gathering.participantCount || 0} {gathering.participantCount === 1 ? 'person' : 'people'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                      <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{formatDate(gathering.createdAt)}</span>
-                    </div>
-                    {gathering.collaboratorCount > 1 && (
+                  </CardHeader>
+                  <CardContent className="pt-1">
+                    <div className="grid grid-cols-2 gap-y-2 gap-x-4">
                       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                        <UserCheck className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>{gathering.collaboratorCount} collaborators</span>
+                        <Wallet className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                          {gathering.currency || 'SGD'} {(gathering.totalAmount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>{gathering.participantCount || 0} {gathering.participantCount === 1 ? 'person' : 'people'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>{formatDate(gathering.createdAt)}</span>
+                      </div>
+                      {gathering.collaboratorCount > 1 && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                          <UserCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{gathering.collaboratorCount} collaborators</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {isConfirming && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+                      >
+                        <p className="text-xs text-red-700 dark:text-red-300 mb-3">
+                          Permanently delete <strong>{gathering.name}</strong> and all its data? This cannot be undone.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleDeleteGathering(gathering.id, gathering.name)}
+                            disabled={deletingId === gathering.id}
+                            className="text-xs h-7 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            {deletingId === gathering.id ? 'Deleting...' : 'Delete'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setConfirmDeleteId(null)}
+                            disabled={deletingId === gathering.id}
+                            className="text-xs h-7"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </main>

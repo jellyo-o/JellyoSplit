@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Settings, Split, Receipt, CheckCircle, Download, Users, Copy, Check, RefreshCw, X, Crown, Shield, Eye } from 'lucide-react';
+import { ArrowLeft, Settings, Split, Receipt, CheckCircle, Download, Users, Copy, Check, RefreshCw, X, Crown, Shield, Eye, Lock, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
@@ -12,23 +12,30 @@ import { useToast } from '../components/ui/Toast';
 
 const DRAWER_DURATION = 200;
 
-function CollaborationPanel({ gatheringId, ownerId, owner, collaborators, shareCode, onClose, refetch }: {
+function CollaborationPanel({ gatheringId, gatheringName, ownerId, owner, collaborators, shareCode, shareCodeRole, onClose, refetch }: {
   gatheringId: string;
+  gatheringName: string;
   ownerId: string;
   owner?: { id: string; displayName: string; avatarUrl?: string | null };
   collaborators: Collaborator[];
   shareCode?: string;
+  shareCodeRole?: 'editor' | 'viewer';
   onClose: () => void;
   refetch: () => Promise<void>;
 }) {
   const { user } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [savingShareRole, setSavingShareRole] = useState(false);
   const [closing, setClosing] = useState(false);
   const isOwner = user?.id === ownerId;
+  const effectiveShareRole: 'editor' | 'viewer' = shareCodeRole === 'viewer' ? 'viewer' : 'editor';
 
   const handleClose = useCallback(() => {
     setClosing(true);
@@ -82,6 +89,35 @@ function CollaborationPanel({ gatheringId, ownerId, owner, collaborators, shareC
     }
   };
 
+  const handleChangeShareRole = async (newRole: 'editor' | 'viewer') => {
+    if (newRole === effectiveShareRole) return;
+    setSavingShareRole(true);
+    try {
+      await fetchApi(`/gatherings/${gatheringId}/shareCodeRole`, {
+        method: 'PUT',
+        body: JSON.stringify({ role: newRole }),
+      });
+      await refetch();
+    } catch {
+      toast.error('Failed to update share link role.');
+    } finally {
+      setSavingShareRole(false);
+    }
+  };
+
+  const handleDeleteGathering = async () => {
+    setDeleting(true);
+    try {
+      await fetchApi(`/gatherings/${gatheringId}`, { method: 'DELETE' });
+      toast.success(`"${gatheringName}" deleted.`);
+      navigate('/', { replace: true });
+    } catch {
+      toast.error('Failed to delete gathering.');
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
   // Separate owner from other collaborators
   const otherCollaborators = collaborators.filter((c) => c.userId !== ownerId);
 
@@ -115,7 +151,9 @@ function CollaborationPanel({ gatheringId, ownerId, owner, collaborators, shareC
             <div>
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Invite Link</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Anyone with this link can join as an editor and collaborate in real-time.
+                {effectiveShareRole === 'editor'
+                  ? 'Anyone with this link can join as an editor and collaborate in real-time.'
+                  : 'Anyone with this link joins as a viewer with read-only access.'}
               </p>
               {shareCode ? (
                 <>
@@ -128,6 +166,44 @@ function CollaborationPanel({ gatheringId, ownerId, owner, collaborators, shareC
                     <Button variant="outline" size="sm" onClick={handleCopy} className="flex-shrink-0">
                       {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                     </Button>
+                  </div>
+
+                  {/* Role for new joiners */}
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Joins as:</span>
+                    <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => handleChangeShareRole('editor')}
+                        disabled={savingShareRole}
+                        className={cn(
+                          'flex items-center gap-1 px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors',
+                          effectiveShareRole === 'editor'
+                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                            : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        )}
+                      >
+                        <Shield className="w-3 h-3" />
+                        Editor
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeShareRole('viewer')}
+                        disabled={savingShareRole}
+                        className={cn(
+                          'flex items-center gap-1 px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors border-l border-gray-200 dark:border-gray-600',
+                          effectiveShareRole === 'viewer'
+                            ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                            : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        )}
+                      >
+                        <Eye className="w-3 h-3" />
+                        Viewer
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                      Existing members are not affected.
+                    </span>
                   </div>
 
                   {/* Regenerate with inline confirm */}
@@ -287,6 +363,42 @@ function CollaborationPanel({ gatheringId, ownerId, owner, collaborators, shareC
               )}
             </div>
           </div>
+
+          {/* Danger Zone — owner only */}
+          {isOwner && (
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">Danger Zone</h3>
+              {!confirmDelete ? (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete this gathering
+                </button>
+              ) : (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-xs text-red-700 dark:text-red-300 mb-3">
+                    This will permanently delete <strong>{gatheringName}</strong>, including all participants, expenses, payments, and collaborator access. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleDeleteGathering}
+                      disabled={deleting}
+                      className="text-xs h-7 bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      {deleting ? 'Deleting...' : 'Delete forever'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)} disabled={deleting} className="text-xs h-7">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -296,6 +408,7 @@ function CollaborationPanel({ gatheringId, ownerId, owner, collaborators, shareC
 export default function GatheringLayout() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showCollab, setShowCollab] = useState(false);
 
   const { gathering, setGathering, loading, error, refetch, optimistic } = useGathering(id);
@@ -306,6 +419,13 @@ export default function GatheringLayout() {
       navigate('/');
     }
   }, [error, navigate]);
+
+  const canEdit = useMemo(() => {
+    if (!gathering || !user) return false;
+    if (gathering.ownerId === user.id) return true;
+    const me = gathering.collaborators.find((c) => c.userId === user.id);
+    return me?.role === 'editor';
+  }, [gathering, user]);
 
   if (loading || !gathering) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">Loading...</div>;
@@ -320,7 +440,7 @@ export default function GatheringLayout() {
   ];
 
   return (
-    <GatheringProvider value={{ gathering, setGathering, optimistic, refetch }}>
+    <GatheringProvider value={{ gathering, setGathering, optimistic, refetch, canEdit }}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
         <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -338,6 +458,15 @@ export default function GatheringLayout() {
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Live</span>
               </div>
+              {!canEdit && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-1 rounded-full border border-amber-200 dark:border-amber-800"
+                  title="You have viewer-only access to this gathering"
+                >
+                  <Eye className="w-3 h-3" />
+                  Viewer
+                </span>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -356,6 +485,17 @@ export default function GatheringLayout() {
             </div>
           </div>
         </header>
+
+        {!canEdit && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
+              <Lock className="w-4 h-4 flex-shrink-0" />
+              <span>
+                <span className="font-semibold">Read-only access.</span> You can view this gathering but cannot make changes. Contact the owner to request editor access.
+              </span>
+            </div>
+          </div>
+        )}
 
         <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row gap-6">
           <aside className="md:w-64 flex-shrink-0 md:sticky md:top-[5.5rem] md:self-start">
@@ -389,10 +529,12 @@ export default function GatheringLayout() {
         {showCollab && (
           <CollaborationPanel
             gatheringId={gathering.id}
+            gatheringName={gathering.name}
             ownerId={gathering.ownerId}
             owner={gathering.owner}
             collaborators={gathering.collaborators}
             shareCode={gathering.shareCode}
+            shareCodeRole={gathering.shareCodeRole}
             onClose={() => setShowCollab(false)}
             refetch={refetch}
           />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useSettings } from '../context/SettingsContext';
 import { fetchApi } from '../lib/api';
+import { safeRedirectTarget } from '../lib/safeRedirect';
 
 interface OidcProviderInfo {
   id: string;
@@ -20,6 +21,14 @@ export default function Login() {
   const { login } = useAuth();
   const { appName } = useSettings();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // The path to redirect to after a successful login. Comes from
+  // ProtectedRoute via location.state.from when an unauthenticated user
+  // tried to access a protected URL (e.g. /gathering/join/<shareCode>).
+  // Validated to prevent open-redirect.
+  const fromState = (location.state as { from?: string } | null)?.from;
+  const redirectAfterLogin = safeRedirectTarget(fromState) ?? '/';
 
   const [authMode, setAuthMode] = useState<string>('both');
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
@@ -48,17 +57,23 @@ export default function Login() {
     e.preventDefault();
     try {
       await login({ username: email, password });
-      navigate('/');
+      navigate(redirectAfterLogin, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Login failed');
     }
   };
 
   const handleOIDCLogin = (providerId: string) => {
+    // Pass the post-login destination to the server via ?next=. The server
+    // re-validates and stores it in the session before kicking off the OIDC
+    // flow, then redirects there on successful callback.
+    const next = redirectAfterLogin && redirectAfterLogin !== '/'
+      ? `?next=${encodeURIComponent(redirectAfterLogin)}`
+      : '';
     if (providerId === 'env') {
-      window.location.href = '/api/auth/oidc';
+      window.location.href = `/api/auth/oidc${next}`;
     } else {
-      window.location.href = `/api/auth/oidc/${providerId}`;
+      window.location.href = `/api/auth/oidc/${providerId}${next}`;
     }
   };
 
@@ -141,7 +156,11 @@ export default function Login() {
           {showLocal && registrationEnabled && (
             <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
               Don't have an account?{' '}
-              <Link to="/register" className="font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500">
+              <Link
+                to="/register"
+                state={fromState ? { from: fromState } : undefined}
+                className="font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500"
+              >
                 Sign up
               </Link>
             </p>

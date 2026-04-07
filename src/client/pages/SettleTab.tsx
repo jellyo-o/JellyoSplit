@@ -16,7 +16,7 @@ function txKey(gatheringId: string, tx: Transaction) {
 }
 
 export default function SettleTab() {
-  const { gathering, optimistic } = useGatheringContext();
+  const { gathering, optimistic, canEdit } = useGatheringContext();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [settledTxs, setSettledTxs] = useState<Set<string>>(new Set());
@@ -120,7 +120,7 @@ export default function SettleTab() {
                     Reset
                   </Button>
                 )}
-                {allSettled && (
+                {allSettled && canEdit && (
                   <Button onClick={markAsSettled} className="bg-green-600 hover:bg-green-700 text-white">
                     Finalize Settlement
                   </Button>
@@ -132,9 +132,11 @@ export default function SettleTab() {
                 <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-3 py-1 rounded-full text-sm font-bold">
                   Settled
                 </span>
-                <Button size="sm" variant="ghost" onClick={undoSettle}>
-                  Undo
-                </Button>
+                {canEdit && (
+                  <Button size="sm" variant="ghost" onClick={undoSettle}>
+                    Undo
+                  </Button>
+                )}
               </div>
             )}
           </div>

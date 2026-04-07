@@ -193,9 +193,14 @@ router.post('/join/:shareCode', requireAuth, async (req, res, next) => {
       return res.json(gathering); // already owner
     }
 
+    // New joiners get whatever role the owner has set on the share link.
+    // Existing collaborators keep whatever role they currently have (so a
+    // viewer who's been manually downgraded doesn't get re-promoted by
+    // re-clicking the link).
+    const joinRole = gathering.shareCodeRole === 'viewer' ? 'viewer' : 'editor';
     const collab = await prisma.gatheringCollaborator.upsert({
       where: { gatheringId_userId: { gatheringId: gathering.id, userId } },
-      create: { gatheringId: gathering.id, userId, role: 'editor' },
+      create: { gatheringId: gathering.id, userId, role: joinRole },
       update: {}
     });
 
@@ -375,6 +380,24 @@ router.post('/:id/shareCode', requireOwner, async (req, res, next) => {
     });
     emitToGathering(id, 'gathering:updated', gathering);
     res.json({ shareCode: gathering.shareCode });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update the role granted to new joiners via the share link
+router.put('/:id/shareCodeRole', requireOwner, async (req, res, next) => {
+  try {
+    const id = req.params.id as string;
+    const { role } = z.object({ role: z.enum(['editor', 'viewer']) }).parse(req.body);
+
+    const gathering = await prisma.gathering.update({
+      where: { id },
+      data: { shareCodeRole: role },
+    });
+
+    emitToGathering(id, 'gathering:updated', gathering);
+    res.json({ shareCodeRole: gathering.shareCodeRole });
   } catch (err) {
     next(err);
   }

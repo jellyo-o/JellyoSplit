@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchApi } from '../lib/api';
+import { safeRedirectTarget } from '../lib/safeRedirect';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -16,7 +17,11 @@ export default function Register() {
   const [isFirstUser, setIsFirstUser] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { appName } = useSettings();
+
+  const fromState = (location.state as { from?: string } | null)?.from;
+  const redirectAfterLogin = safeRedirectTarget(fromState) ?? '/';
 
   useEffect(() => {
     async function checkStatus() {
@@ -43,14 +48,17 @@ export default function Register() {
         }),
       });
       await login({ username: email, password });
-      navigate('/');
+      navigate(redirectAfterLogin, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     }
   };
 
   const handleOIDCLogin = () => {
-    window.location.href = '/api/auth/oidc';
+    const next = redirectAfterLogin && redirectAfterLogin !== '/'
+      ? `?next=${encodeURIComponent(redirectAfterLogin)}`
+      : '';
+    window.location.href = `/api/auth/oidc${next}`;
   };
 
   return (
@@ -123,7 +131,11 @@ export default function Register() {
 
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
             Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500">
+            <Link
+              to="/login"
+              state={fromState ? { from: fromState } : undefined}
+              className="font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500"
+            >
               Sign in
             </Link>
           </p>

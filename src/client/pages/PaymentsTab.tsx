@@ -17,7 +17,7 @@ function getAssignedParticipants(category: Category, allParticipants: Participan
 }
 
 export default function PaymentsTab() {
-  const { gathering, optimistic } = useGatheringContext();
+  const { gathering, optimistic, canEdit } = useGatheringContext();
   const sk = `payments:${gathering.id}`;
   const [participantId, setParticipantId] = useSessionState(`${sk}:pid`, '');
   const [categoryId, setCategoryId] = useSessionState(`${sk}:cid`, '');
@@ -180,51 +180,53 @@ export default function PaymentsTab() {
   return (
     <div className="space-y-8">
       {/* Record payment form */}
-      <section className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Record Payment</h2>
-        <form onSubmit={addPayment} className="flex flex-col gap-4">
-          <div className="flex gap-4">
-            <select
-              className="flex-1 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-              value={participantId}
-              onChange={e => setParticipantId(e.target.value)}
-              required
-            >
-              <option value="">Who paid?</option>
-              {gathering.participants.map(p => (
-                <option key={p.id} value={p.id}>{p.emoji} {p.name}</option>
-              ))}
-            </select>
-            <select
-              className="flex-1 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-              value={categoryId}
-              onChange={e => setCategoryId(e.target.value)}
-            >
-              <option value="">Overall (No specific category)</option>
-              {gathering.categories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex gap-4">
-            <Input
-              type="number"
-              step="0.01"
-              placeholder={`Amount (${gathering.currency})`}
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              required
-            />
-            <Input
-              className="flex-1"
-              placeholder="Note (optional)"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-            />
-            <Button type="submit">Record</Button>
-          </div>
-        </form>
-      </section>
+      {canEdit && (
+        <section className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Record Payment</h2>
+          <form onSubmit={addPayment} className="flex flex-col gap-4">
+            <div className="flex gap-4">
+              <select
+                className="flex-1 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                value={participantId}
+                onChange={e => setParticipantId(e.target.value)}
+                required
+              >
+                <option value="">Who paid?</option>
+                {gathering.participants.map(p => (
+                  <option key={p.id} value={p.id}>{p.emoji} {p.name}</option>
+                ))}
+              </select>
+              <select
+                className="flex-1 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                value={categoryId}
+                onChange={e => setCategoryId(e.target.value)}
+              >
+                <option value="">Overall (No specific category)</option>
+                {gathering.categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-4">
+              <Input
+                type="number"
+                step="0.01"
+                placeholder={`Amount (${gathering.currency})`}
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                required
+              />
+              <Input
+                className="flex-1"
+                placeholder="Note (optional)"
+                value={note}
+                onChange={e => setNote(e.target.value)}
+              />
+              <Button type="submit">Record</Button>
+            </div>
+          </form>
+        </section>
+      )}
 
       {/* Unaccounted summary */}
       <section className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -378,20 +380,24 @@ export default function PaymentsTab() {
                   <span className="font-bold text-gray-900 dark:text-gray-100">
                     {gathering.currency} {p.amount.toFixed(2)}
                   </span>
-                  <button
-                    onClick={() => startEdit(p)}
-                    className="text-gray-300 dark:text-gray-500 hover:text-primary-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                    title="Edit"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => deletePayment(p.id)}
-                    className="text-gray-300 dark:text-gray-500 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {canEdit && (
+                    <>
+                      <button
+                        onClick={() => startEdit(p)}
+                        className="text-gray-300 dark:text-gray-500 hover:text-primary-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                        title="Edit"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deletePayment(p.id)}
+                        className="text-gray-300 dark:text-gray-500 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );

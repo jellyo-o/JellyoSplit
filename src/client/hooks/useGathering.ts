@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchApi } from '../lib/api';
+import { fetchApi, ApiError } from '../lib/api';
 import { useSocket } from '../context/SocketContext';
+import { useToast } from '../components/ui/Toast';
 
 export interface Participant {
   id: string;
@@ -50,6 +51,7 @@ export interface GatheringState {
   status: string;
   ownerId: string;
   shareCode?: string;
+  shareCodeRole?: 'editor' | 'viewer';
   owner?: { id: string; displayName: string; avatarUrl?: string | null };
   categories: Category[];
   participants: Participant[];
@@ -62,6 +64,7 @@ export function useGathering(id: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const socket = useSocket();
+  const toast = useToast();
 
   const fetchGathering = useCallback(async () => {
     if (!id) return;
@@ -113,11 +116,18 @@ export function useGathering(id: string | undefined) {
       if (!gathering) return;
       const prev = gathering;
       setGathering(localUpdate(prev));
-      apiCall().catch(() => {
+      apiCall().catch((err: unknown) => {
         setGathering(prev);
+        if (err instanceof ApiError && err.status === 403) {
+          toast.error("You don't have permission to edit this gathering (read-only access).");
+        } else if (err instanceof ApiError) {
+          toast.error(err.message || 'Failed to save changes.');
+        } else {
+          toast.error('Failed to save changes.');
+        }
       });
     },
-    [gathering]
+    [gathering, toast]
   );
 
   return { gathering, setGathering, loading, error, refetch: fetchGathering, optimistic };
