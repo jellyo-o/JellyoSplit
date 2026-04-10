@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchApi } from '../lib/api';
 import { safeRedirectTarget } from '../lib/safeRedirect';
@@ -17,11 +17,11 @@ export default function Register() {
   const [isFirstUser, setIsFirstUser] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { appName } = useSettings();
 
-  const fromState = (location.state as { from?: string } | null)?.from;
-  const redirectAfterLogin = safeRedirectTarget(fromState) ?? '/';
+  const nextParam = searchParams.get('next');
+  const redirectAfterLogin = safeRedirectTarget(nextParam) ?? '/';
 
   useEffect(() => {
     async function checkStatus() {
@@ -132,8 +132,7 @@ export default function Register() {
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
             Already have an account?{' '}
             <Link
-              to="/login"
-              state={fromState ? { from: fromState } : undefined}
+              to={nextParam ? `/login?next=${encodeURIComponent(nextParam)}` : '/login'}
               className="font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500"
             >
               Sign in

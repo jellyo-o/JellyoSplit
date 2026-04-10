@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { safeRedirectTarget } from './lib/safeRedirect';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -20,10 +21,17 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
   if (!user) {
-    // Preserve the originally requested URL so the login page can send the
-    // user back to it after authenticating.
+    // Preserve the originally requested URL in a `?next=` query param so the
+    // login page can send the user back to it after authenticating. We use a
+    // URL param (rather than React Router's location state) so the value
+    // survives full page reloads, the OIDC round-trip, and any quirks in how
+    // <Navigate> propagates state in React Router v7.
     const from = `${location.pathname}${location.search}${location.hash}`;
-    return <Navigate to="/login" replace state={{ from }} />;
+    const safe = safeRedirectTarget(from);
+    const target = safe && safe !== '/'
+      ? `/login?next=${encodeURIComponent(safe)}`
+      : '/login';
+    return <Navigate to={target} replace />;
   }
   return <>{children}</>;
 };

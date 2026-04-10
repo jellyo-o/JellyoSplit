@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -21,14 +21,14 @@ export default function Login() {
   const { login } = useAuth();
   const { appName } = useSettings();
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  // The path to redirect to after a successful login. Comes from
-  // ProtectedRoute via location.state.from when an unauthenticated user
-  // tried to access a protected URL (e.g. /gathering/join/<shareCode>).
-  // Validated to prevent open-redirect.
-  const fromState = (location.state as { from?: string } | null)?.from;
-  const redirectAfterLogin = safeRedirectTarget(fromState) ?? '/';
+  // The path to redirect to after a successful login. ProtectedRoute puts the
+  // originally requested URL in `?next=` when an unauthenticated user tried
+  // to hit a protected route (e.g. /gathering/join/<shareCode>). Always
+  // re-validated to prevent open-redirect.
+  const nextParam = searchParams.get('next');
+  const redirectAfterLogin = safeRedirectTarget(nextParam) ?? '/';
 
   const [authMode, setAuthMode] = useState<string>('both');
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
@@ -157,8 +157,7 @@ export default function Login() {
             <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
               Don't have an account?{' '}
               <Link
-                to="/register"
-                state={fromState ? { from: fromState } : undefined}
+                to={nextParam ? `/register?next=${encodeURIComponent(nextParam)}` : '/register'}
                 className="font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500"
               >
                 Sign up
