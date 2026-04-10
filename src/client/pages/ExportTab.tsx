@@ -51,8 +51,8 @@ function buildExportData(gathering: any) {
   });
 
   // Second pass: overall adjustments — each redistributes independently
-  const owedCount = peopleBase.filter((p: any) => p.totalOwed > 0.01).length;
-  if (owedCount > 1) {
+  const participantCount = peopleBase.length;
+  if (participantCount > 1) {
     const baseOwed = peopleBase.map((p: any) => p.totalOwed);
     for (let i = 0; i < peopleBase.length; i++) {
       const p = peopleBase[i].participant;
@@ -64,9 +64,9 @@ function buildExportData(gathering: any) {
         else if (adj.type === 'fixed_more') diff = adj.value;
         if (Math.abs(diff) < 0.001) continue;
         peopleBase[i].totalOwed += diff;
-        const redistEach = -diff / (owedCount - 1);
+        const redistEach = -diff / (participantCount - 1);
         for (let j = 0; j < peopleBase.length; j++) {
-          if (j !== i && baseOwed[j] > 0.01) peopleBase[j].totalOwed += redistEach;
+          if (j !== i) peopleBase[j].totalOwed += redistEach;
         }
       }
     }
@@ -191,9 +191,17 @@ export default function ExportTab() {
 
   const handleExportJson = () => exportGatheringJson(gathering.id, gathering.name);
 
-  const handleExportCsv = guardExport(() => {
+  const handleExportCsv = guardExport(async () => {
     const { currency, people } = buildExportData(gathering);
     const lines: string[] = [];
+
+    // Pre-fetch settlement if needed
+    let csvSettlement: any = null;
+    if (sections.settlement) {
+      try {
+        csvSettlement = await fetchApi(`/gatherings/${gathering.id}/settlement/compute`);
+      } catch {}
+    }
 
     let filteredCats = filterCategories && filterCategories.length > 0
       ? gathering.categories.filter((c: any) => filterCategories.includes(c.id))
@@ -255,7 +263,21 @@ export default function ExportTab() {
         }
         lines.push('');
       },
-      settlement: () => {},
+      settlement: () => {
+        if (!csvSettlement?.transactions?.length) return;
+        const txs = filterPeople && filterPeople.length > 0
+          ? csvSettlement.transactions.filter((tx: any) => filterPeople.includes(tx.fromParticipantId) && filterPeople.includes(tx.toParticipantId))
+          : csvSettlement.transactions;
+        if (txs.length === 0) return;
+        lines.push('--- Settlement Plan ---');
+        lines.push('From,To,Amount');
+        for (const tx of txs) {
+          const from = gathering.participants.find((p: any) => p.id === tx.fromParticipantId)?.name || 'Unknown';
+          const to = gathering.participants.find((p: any) => p.id === tx.toParticipantId)?.name || 'Unknown';
+          lines.push(`"${from}","${to}",${tx.amount.toFixed(2)}`);
+        }
+        lines.push('');
+      },
       categoryDetails: () => {},
       individualBreakdown: () => {
         lines.push('--- Individual Breakdown ---');
@@ -365,7 +387,7 @@ export default function ExportTab() {
       settlement: () => {
         if (!settlement?.transactions?.length) return;
         const txs = filterPeople && filterPeople.length > 0
-          ? settlement.transactions.filter((tx: any) => filterPeople.includes(tx.fromParticipantId) || filterPeople.includes(tx.toParticipantId))
+          ? settlement.transactions.filter((tx: any) => filterPeople.includes(tx.fromParticipantId) && filterPeople.includes(tx.toParticipantId))
           : settlement.transactions;
         if (txs.length > 0) {
           const settleData: any[][] = [['From', 'To', 'Amount']];

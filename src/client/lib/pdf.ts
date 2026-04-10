@@ -135,8 +135,8 @@ export async function exportGatheringPdf(
   });
 
   // Second pass: overall adjustments — each redistributes independently to all others
-  const owedCount = peopleBase.filter((p: any) => p.totalOwed > 0.01).length;
-  if (owedCount > 1) {
+  const participantCount = peopleBase.length;
+  if (participantCount > 1) {
     const baseOwed = peopleBase.map((p: any) => p.totalOwed);
     for (let i = 0; i < peopleBase.length; i++) {
       const p = peopleBase[i].participant;
@@ -149,9 +149,9 @@ export async function exportGatheringPdf(
         if (Math.abs(diff) < 0.001) continue;
 
         peopleBase[i].totalOwed += diff;
-        const redistEach = -diff / (owedCount - 1);
+        const redistEach = -diff / (participantCount - 1);
         for (let j = 0; j < peopleBase.length; j++) {
-          if (j !== i && baseOwed[j] > 0.01) peopleBase[j].totalOwed += redistEach;
+          if (j !== i) peopleBase[j].totalOwed += redistEach;
         }
       }
     }
@@ -451,7 +451,7 @@ export async function exportGatheringPdf(
 
     settlement: () => {
       const filteredTxs = filterPeople && filterPeople.length > 0
-        ? settlement.transactions.filter((tx: any) => filterPeople.includes(tx.fromParticipantId) || filterPeople.includes(tx.toParticipantId))
+        ? settlement.transactions.filter((tx: any) => filterPeople.includes(tx.fromParticipantId) && filterPeople.includes(tx.toParticipantId))
         : settlement.transactions;
       sectionTitle('Settlement Plan');
       if (filteredTxs.length > 0) {
